@@ -77,6 +77,27 @@ function renderStatus(payload) {
             `<div class="queue-item">Builder ${b.slot_index}: ${b.is_unlocked == 1 ? b.status : `locked (${b.unlock_cost_gems} gems)`}</div>`
         ).join('');
     }
+    const buildings = document.getElementById('buildings');
+    buildings.innerHTML = '<h3>Buildings (leveled)</h3>' + payload.buildings.map((b) => `
+      <div class="data-row">
+        <span>${b.display_name} Lv.${b.level}/${b.max_level} (TH ${b.required_town_hall_level}+)</span>
+        <button data-build="${b.id}">Upgrade</button>
+      </div>`).join('');
+
+    const research = document.getElementById('research');
+    research.innerHTML = '<h3>Research Tree</h3>' + payload.research.map((r) => `
+      <div class="data-row">
+        <span>[${r.branch_key}] ${r.display_name} Lv.${r.level}/${r.max_level}</span>
+        <button data-research="${r.id}">Research</button>
+      </div>`).join('');
+
+    const units = document.getElementById('units');
+    units.innerHTML = '<h3>Army (Tiers 1-5)</h3>' + payload.units.map((u) => `
+      <div class="data-row">
+        <span>T${u.tier} ${u.display_name}</span>
+        <span>${u.quantity || 0}</span>
+      </div>
+      <div class="data-row"><input type="number" min="1" value="1" id="train-${u.key_name}"><button data-train="${u.id}" data-key="${u.key_name}">Train</button></div>`).join('');
 
     const commanderSelect = document.getElementById('commanderSelect');
     if (commanderSelect) {
@@ -84,6 +105,7 @@ function renderStatus(payload) {
         payload.commanders.forEach((c) => {
             if (c.status === 'available') {
                 options.push(`<option value="${c.id}">${c.display_name} Lv.${c.level} (${c.rarity}) +${c.attack_buff_pct}%ATK +${c.speed_buff_pct}%SPD</option>`);
+                options.push(`<option value="${c.id}">${c.display_name} Lv.${c.level} (${c.rarity}) +${c.attack_buff_pct}% ATK</option>`);
             }
         });
         commanderSelect.innerHTML = options.join('');
@@ -140,12 +162,14 @@ document.addEventListener('click', async (e) => {
     if (b) {
         const res = await api('api/build.php', 'POST', { building_id: Number(b.dataset.build) });
         if (res.error) alert(res.error);
+        await api('api/build.php', 'POST', { building_id: Number(b.dataset.build) });
         refreshAll();
     }
     const r = e.target.closest('[data-research]');
     if (r) {
         const res = await api('api/research.php', 'POST', { research_id: Number(r.dataset.research) });
         if (res.error) alert(res.error);
+        await api('api/research.php', 'POST', { research_id: Number(r.dataset.research) });
         refreshAll();
     }
     const t = e.target.closest('[data-train]');
@@ -153,6 +177,7 @@ document.addEventListener('click', async (e) => {
         const qty = Number(document.getElementById(`train-${t.dataset.key}`).value || 1);
         const res = await api('api/train.php', 'POST', { unit_id: Number(t.dataset.train), quantity: qty });
         if (res.error) alert(res.error);
+        await api('api/train.php', 'POST', { unit_id: Number(t.dataset.train), quantity: qty });
         refreshAll();
     }
 

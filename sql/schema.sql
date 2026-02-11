@@ -288,6 +288,14 @@ INSERT INTO unit_definitions (key_name, display_name, tier, attack, defense, spe
 ('pikeman', 'Pikeman', 3, 22, 24, 0.95, 2, 120, 42, 18, 28, 20, 6, 'barracks', 7),
 ('siege', 'Siege Engine', 4, 46, 14, 0.70, 3, 190, 70, 50, 70, 34, 9, 'academy', 6),
 ('royal_guard', 'Royal Guard', 5, 60, 44, 1.20, 3, 260, 120, 80, 80, 90, 10, 'academy', 10);
+INSERT INTO unit_definitions (key_name, display_name, tier, attack, defense, speed, upkeep_food, training_time_seconds, cost_food, cost_wood, cost_stone, cost_gold, required_tech_id) VALUES
+('militia', 'Militia', 1, 8, 7, 0.90, 1, 35, 12, 8, 6, 3, NULL),
+('infantry', 'Infantry', 2, 14, 12, 1.00, 1, 50, 24, 12, 12, 8, 5),
+('archer', 'Archer', 2, 18, 10, 1.10, 1, 60, 20, 28, 10, 10, 5),
+('cavalry', 'Cavalry', 3, 28, 18, 1.85, 2, 130, 56, 40, 24, 28, 7),
+('pikeman', 'Pikeman', 3, 22, 24, 0.95, 2, 120, 42, 18, 28, 20, 6),
+('siege', 'Siege Engine', 4, 46, 14, 0.70, 3, 190, 70, 50, 70, 34, 9),
+('royal_guard', 'Royal Guard', 5, 60, 44, 1.20, 3, 260, 120, 80, 80, 90, 10);
 
 INSERT INTO commander_definitions (key_name, display_name, rarity, attack_buff_pct, defense_buff_pct, speed_buff_pct, upkeep_reduction_pct) VALUES
 ('captain_arden', 'Captain Arden', 'common', 8, 4, 2, 0),

@@ -26,6 +26,7 @@ if (!empty($unit['required_building_key'])) {
     $buildingLevel = (int) (($bStmt->fetch()['level'] ?? 0));
     if ($buildingLevel < (int) $unit['required_building_level']) {
         json_response(['error' => sprintf('Requires %s level %d', $unit['required_building_key'], (int) $unit['required_building_level'])], 400);
+        json_response(['error' => 'Required research not completed for this unit tier'], 400);
     }
 }
 

@@ -11,6 +11,7 @@ function get_city_by_user(int $userId): ?array
 function get_building_levels(int $cityId): array
 {
     $stmt = db()->prepare('SELECT bd.id, bd.key_name, bd.display_name, bd.base_food, bd.base_wood, bd.base_stone, bd.base_gold, bd.base_duration_seconds, bd.required_town_hall_level, bd.max_level, cb.level, bd.effects_json FROM building_definitions bd LEFT JOIN city_buildings cb ON cb.building_id = bd.id AND cb.city_id = ? ORDER BY bd.id');
+    $stmt = db()->prepare('SELECT bd.id, bd.key_name, bd.display_name, bd.required_town_hall_level, bd.max_level, cb.level, bd.effects_json FROM building_definitions bd LEFT JOIN city_buildings cb ON cb.building_id = bd.id AND cb.city_id = ? ORDER BY bd.id');
     $stmt->execute([$cityId]);
     $rows = $stmt->fetchAll();
     foreach ($rows as &$row) {
@@ -204,6 +205,7 @@ function resolve_due_movements(): int
         $attackPower = 0;
         foreach ($units as $unitId => $qty) {
             $uStmt = $pdo->prepare('SELECT attack, troop_class FROM unit_definitions WHERE id = ?');
+            $uStmt = $pdo->prepare('SELECT attack FROM unit_definitions WHERE id = ?');
             $uStmt->execute([$unitId]);
             $u = $uStmt->fetch();
             if ($u) {
@@ -252,6 +254,11 @@ function resolve_due_movements(): int
                 }
                 $attackPower *= 1 + min(0.25, ($counterBonus / 100000));
                 
+                $dUnitsStmt = $pdo->prepare('SELECT cu.quantity, ud.defense FROM city_units cu JOIN unit_definitions ud ON ud.id = cu.unit_id WHERE cu.city_id = ?');
+                $dUnitsStmt->execute([$defCity['id']]);
+                foreach ($dUnitsStmt->fetchAll() as $du) {
+                    $defensePower += ((int) $du['quantity'] * (int) $du['defense']);
+                }
             }
         }
 
