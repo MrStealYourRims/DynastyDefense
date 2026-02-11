@@ -33,6 +33,7 @@ if ($commanderId > 0) {
 }
 
 $unitDefs = db()->query('SELECT id, key_name, speed, march_capacity FROM unit_definitions')->fetchAll();
+$unitDefs = db()->query('SELECT id, key_name, speed FROM unit_definitions')->fetchAll();
 $availableStmt = db()->prepare('SELECT cu.unit_id, cu.quantity FROM city_units cu WHERE city_id = ?');
 $availableStmt->execute([$city['id']]);
 $available = [];
@@ -77,6 +78,8 @@ try {
 
     $stmt = $pdo->prepare('INSERT INTO army_movements (owner_user_id, source_city_id, target_tile_id, commander_id, mission_type, units_json, departs_at, arrives_at, total_march_capacity) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([$userId, $city['id'], $target['id'], $commanderId ?: null, $mission, json_encode($selected), $depart->format('Y-m-d H:i:s'), $arrive->format('Y-m-d H:i:s'), $totalCapacity]);
+    $stmt = $pdo->prepare('INSERT INTO army_movements (owner_user_id, source_city_id, target_tile_id, commander_id, mission_type, units_json, departs_at, arrives_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt->execute([$userId, $city['id'], $target['id'], $commanderId ?: null, $mission, json_encode($selected), $depart->format('Y-m-d H:i:s'), $arrive->format('Y-m-d H:i:s')]);
 
     if ($commanderId > 0) {
         $pdo->prepare('UPDATE player_commanders SET status = "on_mission" WHERE id = ?')->execute([$commanderId]);
@@ -90,3 +93,4 @@ try {
 }
 
 json_response(['ok' => true, 'arrives_at' => $arrive->format(DateTimeInterface::ATOM), 'march_capacity' => $totalCapacity]);
+json_response(['ok' => true, 'arrives_at' => $arrive->format(DateTimeInterface::ATOM)]);

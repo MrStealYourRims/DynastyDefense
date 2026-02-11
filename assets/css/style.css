@@ -3,6 +3,7 @@ body { margin: 0; font-family: Arial, sans-serif; background: #10131d; color: #f
 a { color: #7bd7ff; }
 .topbar { display:flex; justify-content:space-between; align-items:center; padding:12px 18px; background:#1a2233; border-bottom:1px solid #2b3752; }
 .layout { display:grid; grid-template-columns: 220px 1.1fr 1fr 340px; gap:12px; padding:12px; }
+.layout { display:grid; grid-template-columns: 220px 1fr 1fr 340px; gap:12px; padding:12px; }
 .panel { background:#171d2c; border:1px solid #2a3552; border-radius:8px; padding:12px; min-height:140px; }
 .auth-page { display:flex; align-items:center; justify-content:center; min-height:100vh; }
 .card { width:360px; background:#171d2c; border:1px solid #2a3552; border-radius:8px; padding:20px; }
@@ -27,3 +28,5 @@ button { cursor:pointer; background:#2d5cff; border:none; }
 .queue-item, .data-row { display:flex; justify-content:space-between; border-bottom:1px solid #28314a; padding:4px 0; font-size:13px; gap:8px; }
 .queue-item { font-size:12px; color:#b9c7e7; }
 @media (max-width: 1300px) { .layout { grid-template-columns: 1fr; } }
+.queue-item, .data-row { display:flex; justify-content:space-between; border-bottom:1px solid #28314a; padding:4px 0; font-size:13px; }
+@media (max-width: 1200px) { .layout { grid-template-columns: 1fr; } .map-grid { grid-template-columns: repeat(17, 1fr);} }

@@ -39,6 +39,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $stmt = $pdo->prepare('INSERT INTO users (username, email, password_hash, empire_name, civilization_id) VALUES (?, ?, ?, ?, ?)');
                 $stmt->execute([$username, $email, password_hash($password, PASSWORD_DEFAULT), $empireName, $civilizationId]);
+        } else {
+            try {
+                $pdo->beginTransaction();
+                $stmt = $pdo->prepare('INSERT INTO users (username, email, password_hash, empire_name) VALUES (?, ?, ?, ?)');
+                $stmt->execute([$username, $email, password_hash($password, PASSWORD_DEFAULT), $empireName]);
                 $userId = (int) $pdo->lastInsertId();
 
                 $config = config()['game'];
@@ -57,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $cityId = (int) $pdo->lastInsertId();
 
                 $defaults = ['town_hall' => 1, 'farm' => 1, 'lumber_mill' => 1, 'quarry' => 1, 'gold_mine' => 1, 'warehouse' => 1, 'barracks' => 1];
+                $defaults = ['town_hall' => 1, 'farm' => 1, 'lumber_mill' => 1, 'quarry' => 1, 'gold_mine' => 1, 'warehouse' => 1];
                 $defs = $pdo->query('SELECT id, key_name FROM building_definitions')->fetchAll();
                 foreach ($defs as $def) {
                     $level = $defaults[$def['key_name']] ?? 0;
@@ -76,6 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$starterCommander) {
                     $starterCommander = $pdo->query('SELECT id FROM commander_definitions ORDER BY id LIMIT 1')->fetch();
                 }
+                $starterCommander = $pdo->query('SELECT id FROM commander_definitions ORDER BY id LIMIT 1')->fetch();
                 if ($starterCommander) {
                     $pdo->prepare('INSERT INTO player_commanders (user_id, commander_definition_id, level) VALUES (?, ?, 1)')
                         ->execute([$userId, $starterCommander['id']]);

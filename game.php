@@ -66,6 +66,9 @@ $csrf = csrf_token();
     </section>
 
     <section class="panel">
+    </aside>
+
+    <section class="panel">
         <h2>City Management</h2>
         <div id="buildings"></div>
         <div id="research"></div>
@@ -75,6 +78,9 @@ $csrf = csrf_token();
 
     <section class="panel">
         <h2>Operations</h2>
+        <h2>World Map</h2>
+        <div id="mapGrid" class="map-grid"></div>
+        <div id="tileInfo" class="tile-info">Select a tile to inspect it.</div>
         <form id="sendArmyForm">
             <h3>Send Army</h3>
             <label>Target X <input type="number" name="target_x" required></label>
@@ -97,6 +103,9 @@ $csrf = csrf_token();
             <button type="submit">Dispatch Army</button>
         </form>
 
+    </section>
+
+    <section class="panel">
         <h2>Chat & Alliance</h2>
         <div id="chatMessages" class="chat-box"></div>
         <form id="chatForm">

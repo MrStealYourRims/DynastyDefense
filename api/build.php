@@ -64,4 +64,8 @@ try {
     json_response(['error' => 'Could not queue build'], 500);
 }
 
+spend_city_resources((int) $city['id'], $costs);
+
+$queue = db()->prepare('INSERT INTO build_queue (city_id, building_id, target_level, starts_at, finishes_at) VALUES (?, ?, ?, ?, ?)');
+$queue->execute([$city['id'], $buildingId, $targetLevel, $starts->format('Y-m-d H:i:s'), $finishes->format('Y-m-d H:i:s')]);
 json_response(['ok' => true, 'message' => 'Building upgrade queued']);
