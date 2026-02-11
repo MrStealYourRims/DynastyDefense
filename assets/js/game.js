@@ -1,5 +1,8 @@
 const app = document.getElementById('gameApp');
 const csrf = app?.dataset.csrf || '';
+let selectedBuildingForPlacement = null;
+let latestStatus = null;
+let latestMap = null;
 
 function formatDuration(seconds) {
     const s = Number(seconds || 0);
@@ -26,6 +29,13 @@ async function api(url, method = 'GET', data = null) {
     return res.json();
 }
 
+function toggleView(view) {
+    document.getElementById('cityView')?.classList.toggle('hidden', view !== 'city');
+    document.getElementById('worldView')?.classList.toggle('hidden', view !== 'world');
+}
+
+function renderStatus(payload) {
+    latestStatus = payload;
 function renderStatus(payload) {
     ['food', 'wood', 'stone', 'gold'].forEach((res) => {
         document.getElementById(`res-${res}`).textContent = payload.city[res];
@@ -33,6 +43,43 @@ function renderStatus(payload) {
 
     const civInfo = document.getElementById('civilizationInfo');
     if (civInfo && payload.civilization) {
+        const bonusText = Object.entries(payload.civilization.bonuses || {}).map(([k, v]) => `${k}: +${v}`).join(', ');
+        civInfo.innerHTML = `<small><b>Civilization:</b> ${payload.civilization.name || 'Unassigned'}<br><b>Bonuses:</b> ${bonusText || 'None'}<br><b>City:</b> (${payload.city.x_coord}, ${payload.city.y_coord})</small>`;
+    }
+
+    const inv = document.getElementById('inventoryInfo');
+    if (inv) {
+        inv.innerHTML = `<small>Teleport: ${payload.items?.targeted_teleport || 0} targeted, ${payload.items?.random_teleport || 0} random</small>`;
+    }
+
+    const buildings = document.getElementById('buildings');
+    buildings.innerHTML = '<h3>Buildings</h3>' + payload.buildings.map((b) => {
+        const next = b.next_upgrade;
+        const disabled = !next.can_upgrade ? 'disabled' : '';
+        return `
+        <div class="data-row">
+            <span>${b.display_name} Lv.${b.level}/${b.max_level}</span>
+            <div><button ${disabled} data-build="${b.id}">Upgrade</button> <button data-place-building="${b.id}">Place</button></div>
+        </div>
+        <div class="queue-item"><span>${formatCosts(next.costs)} • ${formatDuration(next.duration_seconds)}</span></div>`;
+    }).join('');
+
+    const research = document.getElementById('research');
+    research.innerHTML = '<h3>Research</h3>' + payload.research.map((r) => {
+        const next = r.next_research;
+        const disabled = !next.can_research ? 'disabled' : '';
+        return `<div class="data-row"><span>[${r.branch_key}] ${r.display_name} Lv.${r.level}/${r.max_level}</span><button ${disabled} data-research="${r.id}">Research</button></div>
+            <div class="queue-item">${formatCosts(next.costs)} • ${formatDuration(next.duration_seconds)}</div>`;
+    }).join('');
+
+    const units = document.getElementById('units');
+    units.innerHTML = '<h3>Units</h3>' + payload.units.map((u) => {
+        const req = u.training_preview.requirements;
+        const canTrain = req.tech_met && req.building_met;
+        return `<div class="data-row"><span>T${u.tier} ${u.display_name}</span><span>${u.quantity || 0}</span></div>
+            <div class="queue-item">Train(1): ${formatCosts(u.training_preview.costs)} • ${formatDuration(u.training_preview.duration_seconds)}</div>
+            <div class="queue-item">Req: ${req.required_building_key || '-'} Lv.${req.required_building_level || 0} ${req.building_met ? '✓' : '✗'}</div>
+            <div class="data-row"><input type="number" min="1" value="1" id="train-${u.key_name}"><button ${canTrain ? '' : 'disabled'} data-train="${u.id}" data-key="${u.key_name}">Train</button></div>`;
         const bonusText = Object.entries(payload.civilization.bonuses || {}).map(([k,v]) => `${k}: +${v}`).join(', ');
         civInfo.innerHTML = `<small><b>Civilization:</b> ${payload.civilization.name || 'Unassigned'}<br><b>Bonuses:</b> ${bonusText || 'None'}</small>`;
     }
@@ -104,6 +151,7 @@ function renderStatus(payload) {
         const options = ['<option value="0">None</option>'];
         payload.commanders.forEach((c) => {
             if (c.status === 'available') {
+                options.push(`<option value="${c.id}">${c.display_name} Lv.${c.level} (${c.rarity})</option>`);
                 options.push(`<option value="${c.id}">${c.display_name} Lv.${c.level} (${c.rarity}) +${c.attack_buff_pct}%ATK +${c.speed_buff_pct}%SPD</option>`);
                 options.push(`<option value="${c.id}">${c.display_name} Lv.${c.level} (${c.rarity}) +${c.attack_buff_pct}% ATK</option>`);
             }
@@ -113,12 +161,14 @@ function renderStatus(payload) {
 }
 
 function renderMap(payload) {
+    latestMap = payload;
     const map = document.getElementById('mapGrid');
     map.innerHTML = '';
     const byCoord = {};
     payload.tiles.forEach(t => { byCoord[`${t.x_coord},${t.y_coord}`] = t; });
     for (let y = payload.bounds.y1; y <= payload.bounds.y2; y++) {
         for (let x = payload.bounds.x1; x <= payload.bounds.x2; x++) {
+            const tile = byCoord[`${x},${y}`] || { x_coord: x, y_coord: y, tile_type: 'empty' };
             const tile = byCoord[`${x},${y}`] || { x_coord:x, y_coord:y, tile_type:'empty' };
             const el = document.createElement('button');
             el.className = `tile ${tile.tile_type}`;
@@ -131,10 +181,45 @@ function renderMap(payload) {
     }
 }
 
+function renderCityLayout(payload) {
+    const grid = document.getElementById('cityGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    const byPos = {};
+    payload.slots.forEach(s => { byPos[`${s.pos_x},${s.pos_y}`] = s; });
+    for (let y = 0; y < payload.grid.height; y++) {
+        for (let x = 0; x < payload.grid.width; x++) {
+            const slot = byPos[`${x},${y}`];
+            const cell = document.createElement('button');
+            cell.className = `city-cell ${slot ? '' : 'empty'}`;
+            cell.textContent = slot ? `${slot.display_name}\nLv.${slot.level}` : '+';
+            cell.onclick = async () => {
+                if (!selectedBuildingForPlacement) {
+                    return;
+                }
+                const res = await api('api/city_layout.php', 'POST', { building_id: selectedBuildingForPlacement, x, y });
+                if (res.error) {
+                    alert(res.error);
+                } else {
+                    selectedBuildingForPlacement = null;
+                    document.getElementById('cityLayoutHint').textContent = 'Building moved.';
+                    refreshLayout();
+                }
+            };
+            grid.appendChild(cell);
+        }
+    }
+}
+
 function renderChat(payload) {
     const box = document.getElementById('chatMessages');
     box.innerHTML = payload.messages.map(m => `<div>[${m.created_at}] <b>${m.username}</b>: ${m.body}</div>`).join('');
     box.scrollTop = box.scrollHeight;
+}
+
+async function refreshLayout() {
+    const layout = await api('api/city_layout.php');
+    if (!layout.error) renderCityLayout(layout);
 }
 
 async function refreshAll() {
@@ -155,6 +240,20 @@ async function refreshAll() {
               <input id="joinTag" placeholder="Join by TAG"><button id="joinAllianceBtn">Join</button>`;
         }
     }
+    refreshLayout();
+}
+
+document.getElementById('zoomCityBtn')?.addEventListener('click', () => toggleView('city'));
+document.getElementById('zoomWorldBtn')?.addEventListener('click', () => toggleView('world'));
+
+document.addEventListener('click', async (e) => {
+    const placeBtn = e.target.closest('[data-place-building]');
+    if (placeBtn) {
+        selectedBuildingForPlacement = Number(placeBtn.dataset.placeBuilding);
+        document.getElementById('cityLayoutHint').textContent = 'Placement mode active: click a tile in city view.';
+        toggleView('city');
+    }
+
 }
 
 document.addEventListener('click', async (e) => {
@@ -182,6 +281,7 @@ document.addEventListener('click', async (e) => {
     }
 
     if (e.target.id === 'createAllianceBtn') {
+        await api('api/alliance.php', 'POST', { action: 'create', name: document.getElementById('allianceName').value, tag: document.getElementById('allianceTag').value });
         await api('api/alliance.php', 'POST', {
             action: 'create',
             name: document.getElementById('allianceName').value,
@@ -193,6 +293,15 @@ document.addEventListener('click', async (e) => {
         await api('api/alliance.php', 'POST', { action: 'join', tag: document.getElementById('joinTag').value });
         refreshAll();
     }
+});
+
+document.getElementById('teleportForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = new FormData(e.target);
+    const payload = Object.fromEntries(form.entries());
+    const res = await api('api/teleport.php', 'POST', payload);
+    alert(res.error || `Teleported to (${res.target.x}, ${res.target.y})`);
+    refreshAll();
 });
 
 document.getElementById('sendArmyForm')?.addEventListener('submit', async (e) => {
@@ -213,5 +322,6 @@ document.getElementById('chatForm')?.addEventListener('submit', async (e) => {
     refreshAll();
 });
 
+toggleView('city');
 refreshAll();
 setInterval(refreshAll, 15000);

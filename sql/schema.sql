@@ -344,6 +344,7 @@ ALTER TABLE building_definitions
     ADD COLUMN builder_slots_required TINYINT UNSIGNED NOT NULL DEFAULT 1;
 
 ALTER TABLE build_queue
+    ADD COLUMN builder_id BIGINT UNSIGNED NULL;
     ADD COLUMN builder_id BIGINT UNSIGNED NULL,
     ADD CONSTRAINT fk_build_queue_builder FOREIGN KEY (builder_id) REFERENCES city_builders(id) ON DELETE SET NULL;
 
@@ -598,3 +599,19 @@ INSERT INTO commander_definitions (key_name, display_name, rarity, specializatio
 ('cmd_cao_cao','Cao Cao','elite','attacking',8,6,3,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
 ('cmd_sima_yi','Sima Yi','epic','defending',9,7,4,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
 ('cmd_zhuge_liang','Zhuge Liang','advanced','gathering',10,8,5,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL);
+
+
+CREATE TABLE city_layout_slots (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    city_id INT UNSIGNED NOT NULL,
+    building_id INT UNSIGNED NOT NULL,
+    pos_x TINYINT UNSIGNED NOT NULL,
+    pos_y TINYINT UNSIGNED NOT NULL,
+    UNIQUE KEY uniq_city_building_layout (city_id, building_id),
+    UNIQUE KEY uniq_city_pos (city_id, pos_x, pos_y),
+    CONSTRAINT fk_layout_city FOREIGN KEY (city_id) REFERENCES cities(id) ON DELETE CASCADE,
+    CONSTRAINT fk_layout_building FOREIGN KEY (building_id) REFERENCES building_definitions(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+ALTER TABLE build_queue
+    ADD CONSTRAINT fk_build_queue_builder FOREIGN KEY (builder_id) REFERENCES city_builders(id) ON DELETE SET NULL;

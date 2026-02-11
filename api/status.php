@@ -6,6 +6,17 @@ $research = get_research_levels($userId);
 $commanders = get_player_commanders($userId);
 $researchById = [];
 
+$tileStmt = db()->prepare('SELECT x_coord, y_coord FROM world_tiles WHERE id = ?');
+$tileStmt->execute([$city['tile_id']]);
+$cityTile = $tileStmt->fetch() ?: ['x_coord' => 0, 'y_coord' => 0];
+
+$itemStmt = db()->prepare('SELECT item_key, quantity FROM player_items WHERE user_id = ? AND item_key IN ("targeted_teleport","random_teleport","civilization_change_token")');
+$itemStmt->execute([$userId]);
+$items = [];
+foreach ($itemStmt->fetchAll() as $it) {
+    $items[$it['item_key']] = (int) $it['quantity'];
+}
+
 $userMetaStmt = db()->prepare('SELECT u.civilization_id, c.display_name AS civilization_name, c.bonus_json FROM users u LEFT JOIN civilizations c ON c.id = u.civilization_id WHERE u.id = ?');
 $userMetaStmt->execute([$userId]);
 $userMeta = $userMetaStmt->fetch() ?: ['civilization_id' => null, 'civilization_name' => null, 'bonus_json' => '{}'];
@@ -154,6 +165,7 @@ $queue = [
 ];
 
 json_response([
+    'city' => array_merge($city, ['x_coord' => (int) $cityTile['x_coord'], 'y_coord' => (int) $cityTile['y_coord']]),
     'city' => $city,
     'buildings' => $buildings,
     'research' => $research,
@@ -166,4 +178,5 @@ json_response([
         'bonuses' => json_decode($userMeta['bonus_json'] ?? '{}', true) ?: [],
     ],
     'builders' => $builders,
+    'items' => $items,
 ]);

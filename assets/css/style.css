@@ -2,6 +2,7 @@
 body { margin: 0; font-family: Arial, sans-serif; background: #10131d; color: #f2f5ff; }
 a { color: #7bd7ff; }
 .topbar { display:flex; justify-content:space-between; align-items:center; padding:12px 18px; background:#1a2233; border-bottom:1px solid #2b3752; }
+.layout { display:grid; grid-template-columns: 220px 1.1fr 1fr 340px; gap:12px; padding:12px; }
 .layout { display:grid; grid-template-columns: 220px 1fr 1fr 340px; gap:12px; padding:12px; }
 .panel { background:#171d2c; border:1px solid #2a3552; border-radius:8px; padding:12px; min-height:140px; }
 .auth-page { display:flex; align-items:center; justify-content:center; min-height:100vh; }
@@ -9,6 +10,13 @@ a { color: #7bd7ff; }
 label { display:block; margin-bottom:8px; }
 input, select, button { width:100%; margin-top:4px; box-sizing:border-box; padding:8px; border-radius:4px; border:1px solid #384569; background:#111827; color:#fff; }
 button { cursor:pointer; background:#2d5cff; border:none; }
+.view-controls { display:flex; gap:8px; margin-bottom:10px; }
+.view-controls button { width:auto; }
+.zoom-view.hidden { display:none; }
+.city-grid { display:grid; grid-template-columns: repeat(8, 42px); gap:4px; margin-bottom:8px; }
+.city-cell { width:42px; height:42px; border:1px solid #2d3855; background:#21314d; font-size:9px; color:#dce7ff; cursor:pointer; display:flex; align-items:center; justify-content:center; text-align:center; }
+.city-cell.empty { background:#142139; }
+.city-cell.selected { outline:2px solid #ffd86b; }
 .map-grid { display:grid; grid-template-columns: repeat(17, 22px); gap:2px; margin-bottom:10px; }
 .tile { width:22px; height:22px; border:1px solid #2d3855; text-align:center; font-size:11px; line-height:22px; cursor:pointer; }
 .tile.empty{ background:#172033; }
@@ -17,5 +25,8 @@ button { cursor:pointer; background:#2d5cff; border:none; }
 .tile.npc_camp{ background:#8a2d37; }
 .chat-box { background:#0f1420; border:1px solid #293550; height:220px; overflow:auto; padding:8px; font-size:13px; }
 .error { color: #ff7f9a; }
+.queue-item, .data-row { display:flex; justify-content:space-between; border-bottom:1px solid #28314a; padding:4px 0; font-size:13px; gap:8px; }
+.queue-item { font-size:12px; color:#b9c7e7; }
+@media (max-width: 1300px) { .layout { grid-template-columns: 1fr; } }
 .queue-item, .data-row { display:flex; justify-content:space-between; border-bottom:1px solid #28314a; padding:4px 0; font-size:13px; }
 @media (max-width: 1200px) { .layout { grid-template-columns: 1fr; } .map-grid { grid-template-columns: repeat(17, 1fr);} }

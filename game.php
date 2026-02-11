@@ -38,6 +38,34 @@ $csrf = csrf_token();
             <li>Stone: <strong id="res-stone"><?= (int) $city['stone'] ?></strong></li>
             <li>Gold: <strong id="res-gold"><?= (int) $city['gold'] ?></strong></li>
         </ul>
+        <div id="inventoryInfo"></div>
+    </aside>
+
+    <section class="panel">
+        <h2>City & World View</h2>
+        <div class="view-controls">
+            <button id="zoomCityBtn" type="button">Zoom In (City)</button>
+            <button id="zoomWorldBtn" type="button">Zoom Out (World)</button>
+        </div>
+        <div id="cityView" class="zoom-view">
+            <h3>City Layout (drag/drop via click-select + click-tile)</h3>
+            <div id="cityGrid" class="city-grid"></div>
+            <div id="cityLayoutHint">Select building from list, then click city tile to place it.</div>
+        </div>
+        <div id="worldView" class="zoom-view hidden">
+            <h3>World Map</h3>
+            <div id="mapGrid" class="map-grid"></div>
+            <div id="tileInfo" class="tile-info">Select a tile to inspect it.</div>
+            <form id="teleportForm">
+                <h4>Teleport City</h4>
+                <label>Target X <input type="number" name="target_x" required></label>
+                <label>Target Y <input type="number" name="target_y" required></label>
+                <button type="submit">Use Targeted Teleport</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="panel">
     </aside>
 
     <section class="panel">
@@ -49,6 +77,7 @@ $csrf = csrf_token();
     </section>
 
     <section class="panel">
+        <h2>Operations</h2>
         <h2>World Map</h2>
         <div id="mapGrid" class="map-grid"></div>
         <div id="tileInfo" class="tile-info">Select a tile to inspect it.</div>
@@ -73,6 +102,7 @@ $csrf = csrf_token();
             <label>Siege <input type="number" name="siege" value="0" min="0"></label>
             <button type="submit">Dispatch Army</button>
         </form>
+
     </section>
 
     <section class="panel">

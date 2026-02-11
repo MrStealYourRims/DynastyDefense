@@ -94,6 +94,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ->execute([(int) $bonus['march_queue_bonus'], $cityId]);
                 }
 
+
+                $pdo->prepare('INSERT INTO player_items (user_id, item_key, quantity) VALUES (?, "targeted_teleport", 2), (?, "random_teleport", 1), (?, "civilization_change_token", 1)')
+                    ->execute([$userId, $userId, $userId]);
+
                 $pdo->commit();
                 login_user($userId);
                 header('Location: game.php');
