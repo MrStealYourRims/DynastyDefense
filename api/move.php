@@ -7,6 +7,13 @@ $targetY = scalar_int($payload['target_y'] ?? 0, 0, 10000);
 $mission = in_array(($payload['mission_type'] ?? ''), ['attack', 'scout', 'reinforce', 'gather'], true) ? $payload['mission_type'] : 'attack';
 $commanderId = isset($payload['commander_id']) ? scalar_int($payload['commander_id'], 0, PHP_INT_MAX) : 0;
 
+$activeMarchStmt = db()->prepare('SELECT COUNT(*) AS c FROM army_movements WHERE owner_user_id = ? AND status = "moving"');
+$activeMarchStmt->execute([$userId]);
+$activeMarches = (int) $activeMarchStmt->fetch()['c'];
+if ($activeMarches >= (int) $city['march_queue_limit']) {
+    json_response(['error' => 'All march queues are currently in use'], 400);
+}
+
 $targetStmt = db()->prepare('SELECT * FROM world_tiles WHERE x_coord = ? AND y_coord = ?');
 $targetStmt->execute([$targetX, $targetY]);
 $target = $targetStmt->fetch();
@@ -25,6 +32,7 @@ if ($commanderId > 0) {
     $commanderSpeedBuff = (float) $commander['speed_buff_pct'];
 }
 
+$unitDefs = db()->query('SELECT id, key_name, speed, march_capacity FROM unit_definitions')->fetchAll();
 $unitDefs = db()->query('SELECT id, key_name, speed FROM unit_definitions')->fetchAll();
 $availableStmt = db()->prepare('SELECT cu.unit_id, cu.quantity FROM city_units cu WHERE city_id = ?');
 $availableStmt->execute([$city['id']]);
@@ -35,6 +43,7 @@ foreach ($availableStmt->fetchAll() as $row) {
 
 $selected = [];
 $minSpeed = null;
+$totalCapacity = 0;
 foreach ($unitDefs as $def) {
     $qty = scalar_int($payload[$def['key_name']] ?? 0, 0, 500000);
     if ($qty <= 0) {
@@ -45,6 +54,7 @@ foreach ($unitDefs as $def) {
     }
     $selected[(int) $def['id']] = $qty;
     $minSpeed = $minSpeed === null ? (float) $def['speed'] : min($minSpeed, (float) $def['speed']);
+    $totalCapacity += ((int) $def['march_capacity'] * $qty);
 }
 if (!$selected) {
     json_response(['error' => 'Select at least one unit'], 400);
@@ -66,6 +76,8 @@ try {
         $pdo->prepare('UPDATE city_units SET quantity = quantity - ? WHERE city_id = ? AND unit_id = ?')->execute([$qty, $city['id'], $unitId]);
     }
 
+    $stmt = $pdo->prepare('INSERT INTO army_movements (owner_user_id, source_city_id, target_tile_id, commander_id, mission_type, units_json, departs_at, arrives_at, total_march_capacity) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt->execute([$userId, $city['id'], $target['id'], $commanderId ?: null, $mission, json_encode($selected), $depart->format('Y-m-d H:i:s'), $arrive->format('Y-m-d H:i:s'), $totalCapacity]);
     $stmt = $pdo->prepare('INSERT INTO army_movements (owner_user_id, source_city_id, target_tile_id, commander_id, mission_type, units_json, departs_at, arrives_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([$userId, $city['id'], $target['id'], $commanderId ?: null, $mission, json_encode($selected), $depart->format('Y-m-d H:i:s'), $arrive->format('Y-m-d H:i:s')]);
 
@@ -80,4 +92,5 @@ try {
     json_response(['error' => 'Unable to dispatch army'], 500);
 }
 
+json_response(['ok' => true, 'arrives_at' => $arrive->format(DateTimeInterface::ATOM), 'march_capacity' => $totalCapacity]);
 json_response(['ok' => true, 'arrives_at' => $arrive->format(DateTimeInterface::ATOM)]);

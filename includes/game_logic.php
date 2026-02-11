@@ -10,6 +10,7 @@ function get_city_by_user(int $userId): ?array
 
 function get_building_levels(int $cityId): array
 {
+    $stmt = db()->prepare('SELECT bd.id, bd.key_name, bd.display_name, bd.base_food, bd.base_wood, bd.base_stone, bd.base_gold, bd.base_duration_seconds, bd.required_town_hall_level, bd.max_level, cb.level, bd.effects_json FROM building_definitions bd LEFT JOIN city_buildings cb ON cb.building_id = bd.id AND cb.city_id = ? ORDER BY bd.id');
     $stmt = db()->prepare('SELECT bd.id, bd.key_name, bd.display_name, bd.required_town_hall_level, bd.max_level, cb.level, bd.effects_json FROM building_definitions bd LEFT JOIN city_buildings cb ON cb.building_id = bd.id AND cb.city_id = ? ORDER BY bd.id');
     $stmt->execute([$cityId]);
     $rows = $stmt->fetchAll();
@@ -135,6 +136,9 @@ function complete_due_queues(int $cityId, int $userId): void
                 ->execute([$capacityIncrease, $capacityIncrease, $capacityIncrease, $capacityIncrease, $cityId]);
         }
         $pdo->prepare('UPDATE build_queue SET status = "complete" WHERE id = ?')->execute([$row['id']]);
+        if (!empty($row['builder_id'])) {
+            $pdo->prepare('UPDATE city_builders SET status = "idle" WHERE id = ?')->execute([$row['builder_id']]);
+        }
     }
 
     $training = $pdo->prepare('SELECT * FROM training_queue WHERE city_id = ? AND status = "queued" AND finishes_at <= ?');
@@ -170,6 +174,24 @@ function spend_city_resources(int $cityId, array $costs): void
     $stmt->execute([$costs['food'] ?? 0, $costs['wood'] ?? 0, $costs['stone'] ?? 0, $costs['gold'] ?? 0, $cityId]);
 }
 
+
+function troop_counter_multiplier(string $attackerClass, string $defenderClass): float
+{
+    if ($attackerClass === 'infantry' && $defenderClass === 'cavalry') {
+        return 1.15;
+    }
+    if ($attackerClass === 'cavalry' && $defenderClass === 'archer') {
+        return 1.15;
+    }
+    if ($attackerClass === 'archer' && $defenderClass === 'infantry') {
+        return 1.15;
+    }
+    if ($attackerClass === 'siege' && $defenderClass === 'defense') {
+        return 1.10;
+    }
+    return 1.0;
+}
+
 function resolve_due_movements(): int
 {
     $pdo = db();
@@ -182,6 +204,7 @@ function resolve_due_movements(): int
         $units = json_decode($movement['units_json'], true) ?: [];
         $attackPower = 0;
         foreach ($units as $unitId => $qty) {
+            $uStmt = $pdo->prepare('SELECT attack, troop_class FROM unit_definitions WHERE id = ?');
             $uStmt = $pdo->prepare('SELECT attack FROM unit_definitions WHERE id = ?');
             $uStmt->execute([$unitId]);
             $u = $uStmt->fetch();
@@ -208,6 +231,29 @@ function resolve_due_movements(): int
             $cityStmt->execute([$defenderUserId]);
             $defCity = $cityStmt->fetch();
             if ($defCity) {
+                $dUnitsStmt = $pdo->prepare('SELECT cu.quantity, ud.defense, ud.troop_class FROM city_units cu JOIN unit_definitions ud ON ud.id = cu.unit_id WHERE cu.city_id = ?');
+                $dUnitsStmt->execute([$defCity['id']]);
+                $defenders = $dUnitsStmt->fetchAll();
+                foreach ($defenders as $du) {
+                    $defensePower += ((int) $du['quantity'] * (int) $du['defense']);
+                }
+
+                                // Hostinger-compatible fallback counter calc without JSON_TABLE
+                $attackerClasses = [];
+                foreach ($units as $unitId => $qty) {
+                    $clsStmt = $pdo->prepare('SELECT troop_class FROM unit_definitions WHERE id = ?');
+                    $clsStmt->execute([$unitId]);
+                    $cls = $clsStmt->fetch()['troop_class'] ?? 'infantry';
+                    $attackerClasses[] = [$cls, (int) $qty];
+                }
+                $counterBonus = 0.0;
+                foreach ($attackerClasses as [$aclass, $aqty]) {
+                    foreach ($defenders as $du) {
+                        $counterBonus += troop_counter_multiplier((string) $aclass, (string) $du['troop_class']) * $aqty;
+                    }
+                }
+                $attackPower *= 1 + min(0.25, ($counterBonus / 100000));
+                
                 $dUnitsStmt = $pdo->prepare('SELECT cu.quantity, ud.defense FROM city_units cu JOIN unit_definitions ud ON ud.id = cu.unit_id WHERE cu.city_id = ?');
                 $dUnitsStmt->execute([$defCity['id']]);
                 foreach ($dUnitsStmt->fetchAll() as $du) {

@@ -31,6 +31,7 @@ $csrf = csrf_token();
 <main class="layout" id="gameApp" data-csrf="<?= htmlspecialchars($csrf) ?>">
     <aside class="panel" id="resourcesPanel">
         <h2>Resources</h2>
+        <div id="civilizationInfo"></div>
         <ul>
             <li>Food: <strong id="res-food"><?= (int) $city['food'] ?></strong></li>
             <li>Wood: <strong id="res-wood"><?= (int) $city['wood'] ?></strong></li>
@@ -44,6 +45,7 @@ $csrf = csrf_token();
         <div id="buildings"></div>
         <div id="research"></div>
         <div id="units"></div>
+        <div id="builders"></div>
     </section>
 
     <section class="panel">

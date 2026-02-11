@@ -17,6 +17,13 @@ if ($townHallLevel < (int) $building['required_town_hall_level']) {
     json_response(['error' => 'Town Hall level too low for this building'], 400);
 }
 
+$builderStmt = db()->prepare('SELECT * FROM city_builders WHERE city_id = ? AND is_unlocked = 1 AND status = "idle" ORDER BY slot_index ASC LIMIT 1');
+$builderStmt->execute([$city['id']]);
+$builder = $builderStmt->fetch();
+if (!$builder) {
+    json_response(['error' => 'No idle builder available. Unlock or wait for a builder.'], 400);
+}
+
 $targetLevel = (int) $building['level'] + 1;
 if ($targetLevel > (int) $building['max_level']) {
     json_response(['error' => 'Building max level reached'], 400);
@@ -41,6 +48,22 @@ if (isset($researchBonus['build_speed_pct'])) {
 
 $starts = game_now();
 $finishes = $starts->modify('+' . $duration . ' seconds');
+
+$pdo = db();
+$pdo->beginTransaction();
+try {
+    spend_city_resources((int) $city['id'], $costs);
+    $queue = $pdo->prepare('INSERT INTO build_queue (city_id, building_id, target_level, starts_at, finishes_at, builder_id) VALUES (?, ?, ?, ?, ?, ?)');
+    $queue->execute([$city['id'], $buildingId, $targetLevel, $starts->format('Y-m-d H:i:s'), $finishes->format('Y-m-d H:i:s'), $builder['id']]);
+    $pdo->prepare('UPDATE city_builders SET status = "building" WHERE id = ?')->execute([$builder['id']]);
+    $pdo->commit();
+} catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    json_response(['error' => 'Could not queue build'], 500);
+}
+
 spend_city_resources((int) $city['id'], $costs);
 
 $queue = db()->prepare('INSERT INTO build_queue (city_id, building_id, target_level, starts_at, finishes_at) VALUES (?, ?, ?, ?, ?)');

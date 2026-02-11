@@ -157,6 +157,8 @@ CREATE TABLE unit_definitions (
     cost_stone INT UNSIGNED NOT NULL,
     cost_gold INT UNSIGNED NOT NULL,
     required_tech_id INT UNSIGNED NULL,
+    required_building_key VARCHAR(40) NULL,
+    required_building_level TINYINT UNSIGNED NOT NULL DEFAULT 1,
     CONSTRAINT fk_unit_required_tech FOREIGN KEY (required_tech_id) REFERENCES research_definitions(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
@@ -278,6 +280,14 @@ INSERT INTO research_definitions (id, key_name, display_name, branch_key, descri
 (9, 'siegecraft', 'Siegecraft', 'warfare', 'Increases siege attack by 5% per level.', 10, 8, 2, 200, 160, 160, 160, 420, JSON_OBJECT('siege_attack_pct', 5)),
 (10, 'logistics', 'Logistics', 'infrastructure', 'Reduces unit upkeep by 2% per level.', 12, 8, 1, 160, 160, 140, 120, 280, JSON_OBJECT('upkeep_reduction_pct', 2));
 
+INSERT INTO unit_definitions (key_name, display_name, tier, attack, defense, speed, upkeep_food, training_time_seconds, cost_food, cost_wood, cost_stone, cost_gold, required_tech_id, required_building_key, required_building_level) VALUES
+('militia', 'Militia', 1, 8, 7, 0.90, 1, 35, 12, 8, 6, 3, NULL, 'barracks', 1),
+('infantry', 'Infantry', 2, 14, 12, 1.00, 1, 50, 24, 12, 12, 8, 5, 'barracks', 3),
+('archer', 'Archer', 2, 18, 10, 1.10, 1, 60, 20, 28, 10, 10, 5, 'barracks', 4),
+('cavalry', 'Cavalry', 3, 28, 18, 1.85, 2, 130, 56, 40, 24, 28, 7, 'barracks', 8),
+('pikeman', 'Pikeman', 3, 22, 24, 0.95, 2, 120, 42, 18, 28, 20, 6, 'barracks', 7),
+('siege', 'Siege Engine', 4, 46, 14, 0.70, 3, 190, 70, 50, 70, 34, 9, 'academy', 6),
+('royal_guard', 'Royal Guard', 5, 60, 44, 1.20, 3, 260, 120, 80, 80, 90, 10, 'academy', 10);
 INSERT INTO unit_definitions (key_name, display_name, tier, attack, defense, speed, upkeep_food, training_time_seconds, cost_food, cost_wood, cost_stone, cost_gold, required_tech_id) VALUES
 ('militia', 'Militia', 1, 8, 7, 0.90, 1, 35, 12, 8, 6, 3, NULL),
 ('infantry', 'Infantry', 2, 14, 12, 1.00, 1, 50, 24, 12, 12, 8, 5),
@@ -292,3 +302,299 @@ INSERT INTO commander_definitions (key_name, display_name, rarity, attack_buff_p
 ('marshal_lyra', 'Marshal Lyra', 'rare', 12, 8, 4, 2),
 ('strategos_vorn', 'Strategos Vorn', 'epic', 16, 10, 5, 4),
 ('empress_guardian', 'Empress Guardian', 'legendary', 22, 16, 8, 6);
+
+-- =============================
+-- Expansion pack: civilizations, builders, commanders, map meta, social & progression scaffolding
+-- =============================
+
+CREATE TABLE civilizations (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    key_name VARCHAR(30) NOT NULL UNIQUE,
+    display_name VARCHAR(40) NOT NULL,
+    bonus_json JSON NOT NULL,
+    special_unit_key VARCHAR(40) NULL,
+    starter_commander_key VARCHAR(40) NULL
+) ENGINE=InnoDB;
+
+ALTER TABLE users
+    ADD COLUMN civilization_id INT UNSIGNED NULL,
+    ADD COLUMN vip_points INT UNSIGNED NOT NULL DEFAULT 0,
+    ADD COLUMN gems BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    ADD COLUMN action_points INT UNSIGNED NOT NULL DEFAULT 1000,
+    ADD COLUMN kingdom_id INT UNSIGNED NOT NULL DEFAULT 1,
+    ADD CONSTRAINT fk_user_civilization FOREIGN KEY (civilization_id) REFERENCES civilizations(id) ON DELETE SET NULL;
+
+ALTER TABLE cities
+    ADD COLUMN power_score BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    ADD COLUMN march_queue_limit TINYINT UNSIGNED NOT NULL DEFAULT 1,
+    ADD COLUMN hospital_capacity INT UNSIGNED NOT NULL DEFAULT 0,
+    ADD COLUMN wounded_infantry INT UNSIGNED NOT NULL DEFAULT 0,
+    ADD COLUMN wounded_archer INT UNSIGNED NOT NULL DEFAULT 0,
+    ADD COLUMN wounded_cavalry INT UNSIGNED NOT NULL DEFAULT 0,
+    ADD COLUMN wounded_siege INT UNSIGNED NOT NULL DEFAULT 0;
+
+ALTER TABLE world_tiles
+    ADD COLUMN terrain_type ENUM('plains','forest','hill','mountain','river','lake','pass') NOT NULL DEFAULT 'plains',
+    ADD COLUMN is_holy_site TINYINT(1) NOT NULL DEFAULT 0,
+    ADD COLUMN fog_level TINYINT UNSIGNED NOT NULL DEFAULT 100,
+    ADD COLUMN last_scouted_at DATETIME NULL;
+
+ALTER TABLE building_definitions
+    ADD COLUMN category ENUM('core','military','economy','defense','support') NOT NULL DEFAULT 'core',
+    ADD COLUMN builder_slots_required TINYINT UNSIGNED NOT NULL DEFAULT 1;
+
+ALTER TABLE build_queue
+    ADD COLUMN builder_id BIGINT UNSIGNED NULL,
+    ADD CONSTRAINT fk_build_queue_builder FOREIGN KEY (builder_id) REFERENCES city_builders(id) ON DELETE SET NULL;
+
+ALTER TABLE unit_definitions
+    ADD COLUMN troop_class ENUM('infantry','archer','cavalry','siege') NOT NULL DEFAULT 'infantry',
+    ADD COLUMN march_capacity SMALLINT UNSIGNED NOT NULL DEFAULT 1;
+
+ALTER TABLE commander_definitions
+    MODIFY rarity ENUM('advanced','elite','epic','legendary') NOT NULL DEFAULT 'advanced',
+    ADD COLUMN specialization ENUM('leadership','attacking','defending','gathering','peacekeeping','conquering','versatility') NOT NULL DEFAULT 'versatility',
+    ADD COLUMN skill_1 VARCHAR(120) NULL,
+    ADD COLUMN skill_2 VARCHAR(120) NULL,
+    ADD COLUMN skill_3 VARCHAR(120) NULL,
+    ADD COLUMN skill_4 VARCHAR(120) NULL,
+    ADD COLUMN mastery_skill VARCHAR(120) NULL;
+
+ALTER TABLE player_commanders
+    ADD COLUMN secondary_commander_id BIGINT UNSIGNED NULL,
+    ADD COLUMN talent_points INT UNSIGNED NOT NULL DEFAULT 0,
+    ADD COLUMN gear_power INT UNSIGNED NOT NULL DEFAULT 0,
+    ADD CONSTRAINT fk_secondary_commander FOREIGN KEY (secondary_commander_id) REFERENCES player_commanders(id) ON DELETE SET NULL;
+
+ALTER TABLE army_movements
+    ADD COLUMN total_march_capacity INT UNSIGNED NOT NULL DEFAULT 0;
+
+CREATE TABLE city_builders (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    city_id INT UNSIGNED NOT NULL,
+    slot_index TINYINT UNSIGNED NOT NULL,
+    is_unlocked TINYINT(1) NOT NULL DEFAULT 0,
+    unlock_cost_gems INT UNSIGNED NOT NULL DEFAULT 0,
+    status ENUM('idle','building') NOT NULL DEFAULT 'idle',
+    UNIQUE KEY uniq_city_builder_slot (city_id, slot_index),
+    INDEX idx_city_builder_status (city_id, status),
+    CONSTRAINT fk_city_builder_city FOREIGN KEY (city_id) REFERENCES cities(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE commander_equipment (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    player_commander_id BIGINT UNSIGNED NOT NULL,
+    slot ENUM('weapon','helmet','armor','boots','accessory') NOT NULL,
+    item_name VARCHAR(120) NOT NULL,
+    rarity ENUM('common','uncommon','rare','epic','legendary') NOT NULL DEFAULT 'common',
+    stat_json JSON NOT NULL,
+    level TINYINT UNSIGNED NOT NULL DEFAULT 1,
+    CONSTRAINT fk_commander_equipment_commander FOREIGN KEY (player_commander_id) REFERENCES player_commanders(id) ON DELETE CASCADE,
+    UNIQUE KEY uniq_commander_slot (player_commander_id, slot)
+) ENGINE=InnoDB;
+
+CREATE TABLE player_items (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    item_key VARCHAR(60) NOT NULL,
+    quantity INT UNSIGNED NOT NULL DEFAULT 0,
+    INDEX idx_player_item_user (user_id),
+    UNIQUE KEY uniq_player_item (user_id, item_key),
+    CONSTRAINT fk_player_item_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE kingdoms (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(60) NOT NULL,
+    season_key VARCHAR(40) NOT NULL DEFAULT 'season_1',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE kvk_seasons (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    kingdom_id INT UNSIGNED NOT NULL,
+    season_number INT UNSIGNED NOT NULL,
+    chapter_name VARCHAR(120) NOT NULL,
+    status ENUM('preparation','active','ended') NOT NULL DEFAULT 'preparation',
+    starts_at DATETIME NULL,
+    ends_at DATETIME NULL,
+    CONSTRAINT fk_kvk_kingdom FOREIGN KEY (kingdom_id) REFERENCES kingdoms(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE quests (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    quest_key VARCHAR(60) NOT NULL,
+    quest_type ENUM('tutorial','daily','weekly','achievement','event') NOT NULL,
+    target_value INT UNSIGNED NOT NULL DEFAULT 1,
+    progress_value INT UNSIGNED NOT NULL DEFAULT 0,
+    is_completed TINYINT(1) NOT NULL DEFAULT 0,
+    reward_json JSON NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_quests_user_type (user_id, quest_type, is_completed),
+    CONSTRAINT fk_quests_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO civilizations (key_name, display_name, bonus_json, special_unit_key, starter_commander_key) VALUES
+('rome','Rome', JSON_OBJECT('infantry_defense_pct',5,'build_speed_pct',5), 'infantry', 'julius_caesar'),
+('germany','Germany', JSON_OBJECT('cavalry_attack_pct',5,'training_speed_pct',5), 'cavalry', 'frederick_i'),
+('britain','Britain', JSON_OBJECT('archer_attack_pct',5,'research_speed_pct',5), 'archer', 'boudica'),
+('france','France', JSON_OBJECT('health_pct',3,'healing_speed_pct',10), 'infantry', 'joan_of_arc'),
+('spain','Spain', JSON_OBJECT('resource_gather_pct',5,'exp_gain_pct',5), 'cavalry', 'el_cid'),
+('china','China', JSON_OBJECT('building_speed_pct',5,'action_point_recovery_pct',5), 'infantry', 'sun_tzu'),
+('japan','Japan', JSON_OBJECT('scout_speed_pct',10,'troop_attack_pct',3), 'archer', 'tokugawa_ieyasu'),
+('korea','Korea', JSON_OBJECT('research_speed_pct',8,'hospital_capacity_pct',5), 'archer', 'eulji_mundeok'),
+('arabia','Arabia', JSON_OBJECT('cavalry_damage_pct',5,'barbarian_damage_pct',5), 'cavalry', 'saladin'),
+('ottoman','Ottoman', JSON_OBJECT('archer_hp_pct',5,'march_speed_pct',5), 'siege', 'mehmed_ii'),
+('byzantium','Byzantium', JSON_OBJECT('cavalry_defense_pct',5,'hospital_heal_pct',5), 'cavalry', 'belisarius'),
+('greece','Greece', JSON_OBJECT('commander_exp_pct',8,'gather_speed_pct',4), 'infantry', 'alexander_the_great'),
+('vikings','Vikings', JSON_OBJECT('infantry_attack_pct',5,'resource_raid_pct',5), 'infantry', 'ragnar_lodbrok'),
+('maya','Maya', JSON_OBJECT('production_pct',5,'march_queue_bonus',1), 'archer', 'lady_six_sky');
+
+UPDATE building_definitions SET category = 'military' WHERE key_name IN ('barracks');
+UPDATE building_definitions SET category = 'economy' WHERE key_name IN ('farm','lumber_mill','quarry','gold_mine','warehouse');
+UPDATE building_definitions SET category = 'support' WHERE key_name IN ('academy');
+UPDATE building_definitions SET category = 'defense' WHERE key_name IN ('walls');
+
+INSERT INTO building_definitions (key_name, display_name, base_food, base_wood, base_stone, base_gold, base_duration_seconds, required_town_hall_level, max_level, effects_json, category, builder_slots_required) VALUES
+('archery_range','Archery Range',130,180,120,90,220,3,25,JSON_OBJECT('archer_train_speed_pct',3),'military',1),
+('stable','Stable',160,190,150,100,240,4,25,JSON_OBJECT('cavalry_train_speed_pct',3),'military',1),
+('siege_workshop','Siege Workshop',220,260,240,140,300,8,20,JSON_OBJECT('siege_train_speed_pct',4),'military',1),
+('hospital','Hospital',180,150,220,120,260,4,20,JSON_OBJECT('hospital_capacity',1500),'support',1),
+('tavern','Tavern',140,140,100,200,180,3,20,JSON_OBJECT('commander_recruit_chance_pct',2),'support',1),
+('trading_post','Trading Post',150,220,150,130,220,5,20,JSON_OBJECT('tax_income_pct',3),'economy',1),
+('watchtower','Watchtower',120,160,220,120,230,4,20,JSON_OBJECT('scout_vision_range',1),'defense',1),
+('monument','Monument',300,300,300,250,420,10,15,JSON_OBJECT('power_bonus_pct',2),'core',1);
+
+UPDATE unit_definitions SET troop_class = 'infantry' WHERE key_name IN ('militia','infantry','pikeman','royal_guard');
+UPDATE unit_definitions SET troop_class = 'archer' WHERE key_name IN ('archer');
+UPDATE unit_definitions SET troop_class = 'cavalry' WHERE key_name IN ('cavalry');
+UPDATE unit_definitions SET troop_class = 'siege' WHERE key_name IN ('siege');
+UPDATE unit_definitions SET march_capacity = CASE tier WHEN 1 THEN 1 WHEN 2 THEN 2 WHEN 3 THEN 3 WHEN 4 THEN 4 ELSE 5 END;
+
+INSERT INTO kingdoms (name, season_key) VALUES ('Kingdom 1','season_1');
+INSERT INTO kvk_seasons (kingdom_id, season_number, chapter_name, status) VALUES
+(1,1,'The Lost Kingdom','preparation'),
+(1,2,'The Lost Kingdom II','preparation'),
+(1,3,'Light and Darkness','preparation'),
+(1,4,'Season of Conquest: Heroic Anthem','preparation');
+
+INSERT INTO commander_definitions (key_name, display_name, rarity, specialization, attack_buff_pct, defense_buff_pct, speed_buff_pct, upkeep_reduction_pct, skill_1, skill_2, skill_3, skill_4, mastery_skill) VALUES
+('julius_caesar','Julius Caesar','legendary','leadership',20,14,6,4,'Conqueror''s March','Imperial Edict','Roman Discipline','Legion Command','Ave Imperator'),
+('sun_tzu','Sun Tzu','epic','attacking',15,10,4,2,'Art of War','Calculated Assault','Battle Formation','Ambush Doctrine','Supreme Stratagem'),
+('joan_of_arc','Joan of Arc','epic','leadership',12,12,3,3,'Inspiring Banner','Holy Charge','Field Rally','Saint''s Guard','Divine Resolve'),
+('alexander_the_great','Alexander the Great','legendary','conquering',22,10,8,2,'Companion Charge','Gordian Strike','King''s Ambition','Hellenic Command','World Conqueror'),
+('cleopatra','Cleopatra','legendary','gathering',8,12,5,5,'Nile Abundance','Golden Bargain','Royal Caravan','Queen''s Decree','Last Pharaoh'),
+('ragnar_lodbrok','Ragnar Lodbrok','epic','attacking',16,8,6,1,'Viking Fury','Raid Leader','Sea Wolf','Northman Wrath','Valhalla Oath');
+
+
+INSERT INTO commander_definitions (key_name, display_name, rarity, specialization, attack_buff_pct, defense_buff_pct, speed_buff_pct, upkeep_reduction_pct, skill_1, skill_2, skill_3, skill_4, mastery_skill) VALUES
+('cmd_frederick_i','Frederick I','advanced','leadership',6,5,2,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_boudica','Boudica','elite','attacking',7,6,3,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_el_cid','El Cid','epic','defending',8,7,4,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_tokugawa_ieyasu','Tokugawa Ieyasu','advanced','gathering',9,8,5,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_eulji_mundeok','Eulji Mundeok','elite','peacekeeping',10,9,6,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_saladin','Saladin','epic','conquering',11,10,2,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_mehmed_ii','Mehmed II','advanced','versatility',12,11,3,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_belisarius','Belisarius','elite','leadership',13,5,4,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_hannibal_barca','Hannibal Barca','epic','attacking',6,6,5,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_scipio_africanus','Scipio Africanus','advanced','defending',7,7,6,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_richard_the_lionheart','Richard the Lionheart','elite','gathering',8,8,2,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_william_wallace','William Wallace','epic','peacekeeping',9,9,3,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_genghis_khan','Genghis Khan','advanced','conquering',10,10,4,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_kublai_khan','Kublai Khan','elite','versatility',11,11,5,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_yi_sun_sin','Yi Sun-sin','epic','leadership',12,5,6,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_miyamoto_musashi','Miyamoto Musashi','advanced','attacking',13,6,2,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_oda_nobunaga','Oda Nobunaga','elite','defending',6,7,3,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_toyotomi_hideyoshi','Toyotomi Hideyoshi','epic','gathering',7,8,4,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_arminius','Arminius','advanced','peacekeeping',8,9,5,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_charlemagne','Charlemagne','elite','conquering',9,10,6,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_otto_the_great','Otto the Great','epic','versatility',10,11,2,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_henry_v','Henry V','advanced','leadership',11,5,3,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_edward_iii','Edward III','elite','attacking',12,6,4,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_napoleon_bonaparte','Napoleon Bonaparte','epic','defending',13,7,5,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_marshal_ney','Marshal Ney','advanced','gathering',6,8,6,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_duke_of_wellington','Duke of Wellington','elite','peacekeeping',7,9,2,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_ramesses_ii','Ramesses II','epic','conquering',8,10,3,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_thutmose_iii','Thutmose III','advanced','versatility',9,11,4,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_cyrus_the_great','Cyrus the Great','elite','leadership',10,5,5,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_darius_i','Darius I','epic','attacking',11,6,6,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_xerxes_i','Xerxes I','advanced','defending',12,7,2,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_leonidas','Leonidas','elite','gathering',13,8,3,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_pericles','Pericles','epic','peacekeeping',6,9,4,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_themistocles','Themistocles','advanced','conquering',7,10,5,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_miltiades','Miltiades','elite','versatility',8,11,6,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_pyrrhus','Pyrrhus','epic','leadership',9,5,2,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_philip_ii','Philip II','advanced','attacking',10,6,3,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_spartacus','Spartacus','elite','defending',11,7,4,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_vercingetorix','Vercingetorix','epic','gathering',12,8,5,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_attila','Attila','advanced','peacekeeping',13,9,6,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_basil_ii','Basil II','elite','conquering',6,10,2,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_constantine_xi','Constantine XI','epic','versatility',7,11,3,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_nikephoros_phokas','Nikephoros Phokas','advanced','leadership',8,5,4,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_harald_hardrada','Harald Hardrada','elite','attacking',9,6,5,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_leif_erikson','Leif Erikson','epic','defending',10,7,6,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_canute','Canute','advanced','gathering',11,8,2,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_ivar_the_boneless','Ivar the Boneless','elite','peacekeeping',12,9,3,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_bjorn_ironside','Bjorn Ironside','epic','conquering',13,10,4,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_lagertha','Lagertha','advanced','versatility',6,11,5,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_montezuma','Montezuma','elite','leadership',7,5,6,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_pacal_the_great','Pacal the Great','epic','attacking',8,6,2,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_lady_six_sky','Lady Six Sky','advanced','defending',9,7,3,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_itzcoatl','Itzcoatl','elite','gathering',10,8,4,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_moctezuma_i','Moctezuma I','epic','peacekeeping',11,9,5,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_ashoka','Ashoka','advanced','conquering',12,10,6,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_chandragupta','Chandragupta','elite','versatility',13,11,2,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_porus','Porus','epic','leadership',6,5,3,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_akbar','Akbar','advanced','attacking',7,6,4,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_babur','Babur','elite','defending',8,7,5,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_shaka_zulu','Shaka Zulu','epic','gathering',9,8,6,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_mansa_musa','Mansa Musa','advanced','peacekeeping',10,9,2,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_sundiata_keita','Sundiata Keita','elite','conquering',11,10,3,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_tariq_ibn_ziyad','Tariq ibn Ziyad','epic','versatility',12,11,4,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_khalid_ibn_al_walid','Khalid ibn al-Walid','advanced','leadership',13,5,5,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_nur_ad_din','Nur ad-Din','elite','attacking',6,6,6,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_baibars','Baibars','epic','defending',7,7,2,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_nader_shah','Nader Shah','advanced','gathering',8,8,3,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_tamerlane','Tamerlane','elite','peacekeeping',9,9,4,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_aurangzeb','Aurangzeb','epic','conquering',10,10,5,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_rani_lakshmibai','Rani Lakshmibai','advanced','versatility',11,11,6,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_subutai','Subutai','elite','leadership',12,5,2,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_jebe','Jebe','epic','attacking',13,6,3,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_batu_khan','Batu Khan','advanced','defending',6,7,4,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_timur_qutlugh','Timur Qutlugh','elite','gathering',7,8,5,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_isabella_i','Isabella I','epic','peacekeeping',8,9,6,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_ferdinand_ii','Ferdinand II','advanced','conquering',9,10,2,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_alfonso_x','Alfonso X','elite','versatility',10,11,3,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_juan_of_austria','Juan of Austria','epic','leadership',11,5,4,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_cortes','Cortes','advanced','attacking',12,6,5,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_pizarro','Pizarro','elite','defending',13,7,6,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_king_arthur','King Arthur','epic','gathering',6,8,2,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_lancelot','Lancelot','advanced','peacekeeping',7,9,3,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_gawain','Gawain','elite','conquering',8,10,4,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_merlin','Merlin','epic','versatility',9,11,5,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_robin_hood','Robin Hood','advanced','leadership',10,5,6,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_alfred_the_great','Alfred the Great','elite','attacking',11,6,2,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_aethelflaed','Aethelflaed','epic','defending',12,7,3,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_harold_godwinson','Harold Godwinson','advanced','gathering',13,8,4,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_louis_ix','Louis IX','elite','peacekeeping',6,9,5,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_philip_augustus','Philip Augustus','epic','conquering',7,10,6,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_charles_martel','Charles Martel','advanced','versatility',8,11,2,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_joachim_murat','Joachim Murat','elite','leadership',9,5,3,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_jean_lannes','Jean Lannes','epic','attacking',10,6,4,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_ulysses_s_grant','Ulysses S. Grant','advanced','defending',11,7,5,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_robert_e_lee','Robert E. Lee','elite','gathering',12,8,6,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_george_washington','George Washington','epic','peacekeeping',13,9,2,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_horatio_nelson','Horatio Nelson','advanced','conquering',6,10,3,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_admiral_zheng_he','Admiral Zheng He','elite','versatility',7,11,4,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_qin_shi_huang','Qin Shi Huang','epic','leadership',8,5,5,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_emperor_taizong','Emperor Taizong','advanced','attacking',9,6,6,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_wu_zetian','Wu Zetian','elite','defending',10,7,2,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_yue_fei','Yue Fei','epic','gathering',11,8,3,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_huo_qubing','Huo Qubing','advanced','peacekeeping',12,9,4,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_guan_yu','Guan Yu','elite','conquering',13,10,5,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_zhao_yun','Zhao Yun','epic','versatility',6,11,6,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_lu_bu','Lu Bu','advanced','leadership',7,5,2,1,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_cao_cao','Cao Cao','elite','attacking',8,6,3,2,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL),
+('cmd_sima_yi','Sima Yi','epic','defending',9,7,4,3,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran','Heroic Legacy'),
+('cmd_zhuge_liang','Zhuge Liang','advanced','gathering',10,8,5,0,'Tactical Insight','Battle Rhythm','War Council','Seasoned Veteran',NULL);

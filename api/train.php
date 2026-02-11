@@ -16,6 +16,16 @@ if (!empty($unit['required_tech_id'])) {
     $techStmt->execute([$userId, $unit['required_tech_id']]);
     $techLevel = (int) (($techStmt->fetch()['level'] ?? 0));
     if ($techLevel < 1) {
+        json_response(['error' => 'Required research not completed for this troop tier'], 400);
+    }
+}
+
+if (!empty($unit['required_building_key'])) {
+    $bStmt = db()->prepare('SELECT COALESCE(cb.level, 0) AS level FROM city_buildings cb JOIN building_definitions bd ON bd.id = cb.building_id WHERE cb.city_id = ? AND bd.key_name = ? LIMIT 1');
+    $bStmt->execute([$city['id'], $unit['required_building_key']]);
+    $buildingLevel = (int) (($bStmt->fetch()['level'] ?? 0));
+    if ($buildingLevel < (int) $unit['required_building_level']) {
+        json_response(['error' => sprintf('Requires %s level %d', $unit['required_building_key'], (int) $unit['required_building_level'])], 400);
         json_response(['error' => 'Required research not completed for this unit tier'], 400);
     }
 }
